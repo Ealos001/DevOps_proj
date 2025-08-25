@@ -4,7 +4,7 @@ import time
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 # Carica modello
-model = pickle.load(open("sentimentAnalysisModel.pkl", "rb"))
+model = pickle.load(open("sentimentanalysismodel.pkl", "rb"))
 
 # Flask app
 app = Flask(__name__, template_folder="templates", static_folder="static")

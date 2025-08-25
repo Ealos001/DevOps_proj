@@ -1,5 +1,5 @@
 # Usa l'ultima versione minima e aggiorna i pacchetti di sistema
-FROM python:3.11-slim-bullseye
+FROM python:3.11.9-slim-bullseye
 
 WORKDIR /app
 
