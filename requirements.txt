@@ -1,4 +1,5 @@
 flask
+gunicorn
 prometheus_client
 pytest
 scikit-learn

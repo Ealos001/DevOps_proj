@@ -1,28 +1,31 @@
 pipeline {
     agent any
+
     stages {
-        stage('Build') {
+        stage('Checkout') {
             steps {
-                sh 'docker build -t sentiment-api ./model_api'
+                git branch: 'main', url: 'https://github.com/<user>/<repo>.git'
             }
         }
-        stage('Test') {
+
+        stage('Install & Test') {
             steps {
-                sh 'docker run --rm sentiment-api pytest test.py'
+                sh 'pip install -r requirements.txt'
+                sh 'pytest test.py'
             }
         }
-        stage('Deploy') {
+
+        stage('Build Docker') {
             steps {
-                sh 'docker compose up -d --build model-api'
+                sh 'docker build -t flask-sentiment-app .'
             }
         }
-    }
-    post {
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed!'
+
+        stage('Run Container') {
+            steps {
+                sh 'docker stop flask-sentiment || true && docker rm flask-sentiment || true'
+                sh 'docker run -d --name flask-sentiment -p 5000:5000 flask-sentiment-app'
+            }
         }
     }
 }
