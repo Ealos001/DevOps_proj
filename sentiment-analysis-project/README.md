@@ -36,7 +36,7 @@ cd sentiment-analysis-project
 
 **For Windows:**
 ```batch
-start.bat
+./start.bat
 ```
 
 #### Option B: Manual Docker Compose
@@ -200,7 +200,7 @@ The application includes comprehensive monitoring:
 
 - **Prometheus**: Collects metrics from the application
 - **Grafana**: Visualizes metrics with pre-configured dashboards
-- **Node Exporter**: System metrics
+ 
 
 ## CI/CD Pipeline
 
@@ -309,7 +309,7 @@ docker-compose up -d --build
 - **5000**: Sentiment Analysis Web App
 - **3000**: Grafana Dashboard
 - **9090**: Prometheus Metrics
-- **9100**: Node Exporter
+ 
 
 ## 📊 Monitoring Dashboard
 

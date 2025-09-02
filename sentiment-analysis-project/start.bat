@@ -44,7 +44,25 @@ echo ========================================
 echo 🌐 Web Application:    http://localhost:5000
 echo 📊 Prometheus:         http://localhost:9090
 echo 📈 Grafana:            http://localhost:3000 (admin/admin123)
-echo 🔧 Node Exporter:      http://localhost:9100
+REM Node Exporter removed
+echo 🧰 Jenkins:            http://localhost:8080
+
+REM Verify Jenkins is responding
+echo.
+echo 🔎 Checking Jenkins readiness...
+for /l %%i in (1,1,20) do (
+    powershell -Command "try { $resp = (Invoke-WebRequest -Uri 'http://localhost:8080/login' -UseBasicParsing -TimeoutSec 5).StatusCode; if ($resp -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }"
+    if %errorlevel%==0 (
+        echo ✅ Jenkins is up.
+        goto :after_checks
+    ) else (
+        echo ⏳ Waiting for Jenkins... (attempt %%i of 20)
+        timeout /t 5 /nobreak >nul
+    )
+)
+echo ⚠️ Jenkins did not become ready in time. You can still try: http://localhost:8080
+
+:after_checks
 echo.
 echo 📋 Useful commands:
 echo    View logs:          docker-compose logs -f
@@ -60,3 +78,4 @@ echo.
 echo Happy analyzing! 🎭
 echo.
 pause
+

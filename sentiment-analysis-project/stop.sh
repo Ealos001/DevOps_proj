@@ -23,3 +23,4 @@ docker-compose down
 echo "✅ All services stopped successfully!"
 echo "========================================"
 echo "To start again, run: ./start.sh"
+

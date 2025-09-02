@@ -51,27 +51,31 @@ services:
     depends_on:
       - prometheus
 
-  # Node Exporter per metriche di sistema
-  node-exporter:
-    image: prom/node-exporter:latest
+  # Jenkins CI server
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
     ports:
-      - "9100:9100"
+      - "8080:8080"
+      - "50000:50000"
+    environment:
+      - JENKINS_OPTS=--prefix=/
     volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - jenkins_home:/var/jenkins_home
     networks:
       - monitoring
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "curl -fsS http://localhost:8080/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+
+  
 
 volumes:
   prometheus_data:
   grafana_data:
+  jenkins_home:
 
 networks:
   monitoring:
