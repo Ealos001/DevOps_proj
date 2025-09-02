@@ -1,7 +1,8 @@
 services:
   # Applicazione Sentiment Analysis
   sentiment-app:
-    build: .
+    build:
+      context: ./sentiment-app
     ports:
       - "5000:5000"
     environment:
@@ -53,7 +54,8 @@ services:
 
   # Jenkins CI server
   jenkins:
-    image: jenkins/jenkins:lts-jdk17
+    build:
+      context: ./jenkins
     ports:
       - "8080:8080"
       - "50000:50000"
@@ -61,6 +63,7 @@ services:
       - JENKINS_OPTS=--prefix=/
     volumes:
       - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - monitoring
     restart: unless-stopped

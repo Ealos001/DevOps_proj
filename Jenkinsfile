@@ -25,14 +25,14 @@ pipeline {
                             python3 -m venv venv
                             . venv/bin/activate
                             pip install --upgrade pip
-                            pip install -r requirements.txt
+                            pip install -r sentiment-app/requirements.txt
                         '''
                     } else {
                         bat '''
                             python -m venv venv
                             venv\\Scripts\\activate
                             pip install --upgrade pip
-                            pip install -r requirements.txt
+                            pip install -r sentiment-app\\requirements.txt
                         '''
                     }
                 }
@@ -46,12 +46,12 @@ pipeline {
                     if (isUnix()) {
                         sh '''
                             . venv/bin/activate
-                            python -m pytest test_app.py -v --tb=short
+                            python -m pytest sentiment-app/test_app.py -v --tb=short
                         '''
                     } else {
                         bat '''
                             venv\\Scripts\\activate
-                            python -m pytest test_app.py -v --tb=short
+                            python -m pytest sentiment-app\\test_app.py -v --tb=short
                         '''
                     }
                 }
@@ -72,8 +72,8 @@ pipeline {
             steps {
                 echo 'Building Docker image...'
                 script {
-                    dockerImage = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
-                    docker.build("${DOCKER_IMAGE}:latest")
+                    dockerImage = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}", 'sentiment-app')
+                    docker.build("${DOCKER_IMAGE}:latest", 'sentiment-app')
                 }
             }
         }
