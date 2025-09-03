@@ -1,74 +1,213 @@
 pipeline {
     agent any
-
+    
     environment {
-        IMAGE = 'sentiment-api'
-        TAG = 'latest'
+        DOCKER_IMAGE = 'sentiment-analysis'
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        CONTAINER_NAME = 'sentiment-app'
+        PORT = '5000'
     }
-
+    
     stages {
         stage('Checkout') {
             steps {
+                echo 'Checking out code...'
                 checkout scm
             }
         }
-
-        stage('Test API') {
-            agent {
-                docker {
-                    image 'python:3.11'
+        
+        stage('Setup Python Environment') {
+            steps {
+                echo 'Setting up Python environment...'
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            python3 -m venv venv
+                            . venv/bin/activate
+                            pip install --upgrade pip
+                            pip install -r sentiment-app/requirements.txt
+                        '''
+                    } else {
+                        bat '''
+                            python -m venv venv
+                            venv\\Scripts\\activate
+                            pip install --upgrade pip
+                            pip install -r sentiment-app\\requirements.txt
+                        '''
+                    }
                 }
             }
-            steps {
-                sh 'pip install --upgrade pip'
-                sh 'pip install -r requirements.txt pytest httpx'
-                sh 'pytest -q'
-            }
         }
-
-        stage('Build Docker image') {
+        
+        stage('Run Tests') {
             steps {
-                sh "docker build -t ${IMAGE}:${TAG} ."
-            }
-        }
-
-        stage('Integration Test') {
-            steps {
-                sh 'docker compose up -d --build api'
-                sh '''
-                for i in {1..10}; do
-                  if curl -sSf http://localhost:8000/health; then
-                    echo "API is healthy"
-                    exit 0
-                  fi
-                  echo "Waiting for API..."
-                  sleep 3
-                done
-                echo "API failed to start"
-                exit 1
-                '''
+                echo 'Running tests...'
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            . venv/bin/activate
+                            python -m pytest sentiment-app/test_app.py -v --tb=short
+                        '''
+                    } else {
+                        bat '''
+                            venv\\Scripts\\activate
+                            python -m pytest sentiment-app\\test_app.py -v --tb=short
+                        '''
+                    }
+                }
             }
             post {
-                always { sh 'docker compose down' }
+                always {
+                    script {
+                        if (fileExists('test-results.xml')) {
+                            junit 'test-results.xml'
+                        }
+                    }
+                }
             }
         }
-
-        stage('Deploy (docker-compose)') {
+        
+        stage('Build Docker Image') {
             steps {
-                sh 'docker compose up -d --build'
+                echo 'Building Docker image...'
+                script {
+                    dockerImage = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}", 'sentiment-app')
+                    docker.build("${DOCKER_IMAGE}:latest", 'sentiment-app')
+                }
+            }
+        }
+        
+        stage('Stop Previous Container') {
+            steps {
+                echo 'Stopping previous container...'
+                script {
+                    try {
+                        if (isUnix()) {
+                            sh "docker stop ${CONTAINER_NAME} || true"
+                            sh "docker rm ${CONTAINER_NAME} || true"
+                        } else {
+                            bat "docker stop ${CONTAINER_NAME} || exit 0"
+                            bat "docker rm ${CONTAINER_NAME} || exit 0"
+                        }
+                    } catch (Exception e) {
+                        echo 'No previous container to stop'
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                echo 'Deploying application...'
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            docker run -d \
+                                --name ${CONTAINER_NAME} \
+                                -p ${PORT}:5000 \
+                                --restart unless-stopped \
+                                ${DOCKER_IMAGE}:latest
+                        '''
+                    } else {
+                        bat '''
+                            docker run -d --name %CONTAINER_NAME% -p %PORT%:5000 --restart unless-stopped %DOCKER_IMAGE%:latest
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo 'Performing health check...'
+                script {
+                    sleep(time: 10, unit: 'SECONDS')
+                    def response
+                    if (isUnix()) {
+                        response = sh(
+                            script: "curl -f http://localhost:${PORT}/health || exit 1",
+                            returnStatus: true
+                        )
+                    } else {
+                        response = bat(
+                            script: "curl -f http://localhost:${PORT}/health || exit 1",
+                            returnStatus: true
+                        )
+                    }
+                    if (response != 0) {
+                        error('Health check failed!')
+                    }
+                }
             }
         }
     }
-
+    
     post {
-        success {
-            echo 'Pipeline succeeded.'
-        }
-        failure {
-            echo 'Pipeline failed.'
-        }
         always {
-            sh 'docker images | head -n 5 || true'
+            echo 'Pipeline completed!'
+            script {
+                if (isUnix()) {
+                    sh 'docker system prune -f --volumes || true'
+                } else {
+                    bat 'docker system prune -f --volumes || exit 0'
+                }
+            }
+        }
+        
+        success {
+            echo 'Pipeline succeeded! 🎉'
+            script {
+                try {
+                    mail to: 'developer@company.com',
+                         subject: "✅ Deploy SUCCESS - Sentiment Analysis",
+                         body: """
+                         Il deploy del modello di Sentiment Analysis è completato con successo!
+                         
+                         Build: ${BUILD_NUMBER}
+                         Branch: ${BRANCH_NAME}
+                         URL: http://localhost:${PORT}
+                         
+                         L'applicazione è ora disponibile e operativa.
+                         """
+                } catch (Exception e) {
+                    echo 'Email notification failed, but deployment succeeded'
+                }
+            }
+        }
+        
+        failure {
+            echo 'Pipeline failed! ❌'
+            script {
+                try {
+                    if (isUnix()) {
+                        sh "docker stop ${CONTAINER_NAME} || true"
+                        sh "docker rm ${CONTAINER_NAME} || true"
+                        sh "docker run -d --name ${CONTAINER_NAME} -p ${PORT}:5000 ${DOCKER_IMAGE}:previous || true"
+                    } else {
+                        bat "docker stop ${CONTAINER_NAME} || exit 0"
+                        bat "docker rm ${CONTAINER_NAME} || exit 0"
+                        bat "docker run -d --name ${CONTAINER_NAME} -p ${PORT}:5000 ${DOCKER_IMAGE}:previous || exit 0"
+                    }
+                } catch (Exception e) {
+                    echo 'Rollback failed'
+                }
+                try {
+                    mail to: 'developer@company.com',
+                         subject: "❌ Deploy FAILED - Sentiment Analysis",
+                         body: """
+                         Il deploy del modello di Sentiment Analysis è fallito!
+                         
+                         Build: ${BUILD_NUMBER}
+                         Branch: ${BRANCH_NAME}
+                         Error: Check Jenkins logs for details
+                         
+                         È stato tentato un rollback automatico.
+                         """
+                } catch (Exception e) {
+                    echo 'Email notification failed'
+                }
+            }
         }
     }
 }
+

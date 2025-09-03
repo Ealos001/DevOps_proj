@@ -65,7 +65,7 @@ Per modificare le porte pubbliche, cambia i binding in `docker-compose.yml` (es.
 1) Assicurati che `sentimentanalysismodel.pkl` sia nella root del progetto.
 2) Build e avvio:
 ```bash
-docker compose up -d --build
+docker-compose up -d --build
 ```
 Servizi esposti:
 - API: `http://localhost:8000`
@@ -176,4 +176,3 @@ pytest -q
 
 ## Licenza
 Uso didattico/dimostrativo. Adatta secondo le esigenze del tuo progetto.
-
