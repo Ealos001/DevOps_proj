@@ -1,0 +1,57 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "iteration": 165289,
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Request latency (p50/p90)",
+      "targets": [
+        {"expr": "histogram_quantile(0.5, sum(rate(api_request_latency_seconds_bucket[5m])) by (le))"},
+        {"expr": "histogram_quantile(0.9, sum(rate(api_request_latency_seconds_bucket[5m])) by (le))"}
+      ],
+      "datasource": "Prometheus",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "stat",
+      "title": "Prediction errors",
+      "targets": [
+        {"expr": "increase(api_prediction_errors_total[5m])"}
+      ],
+      "datasource": "Prometheus",
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0}
+    },
+    {
+      "type": "stat",
+      "title": "CPU %",
+      "targets": [
+        {"expr": "avg(system_cpu_percent)"}
+      ],
+      "datasource": "Prometheus",
+      "gridPos": {"h": 8, "w": 3, "x": 18, "y": 0}
+    },
+    {
+      "type": "stat",
+      "title": "Memory MB",
+      "targets": [
+        {"expr": "avg(process_memory_mb)"}
+      ],
+      "datasource": "Prometheus",
+      "gridPos": {"h": 8, "w": 3, "x": 21, "y": 0}
+    }
+  ],
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": ["sentiment", "api"],
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "Sentiment API Overview",
+  "uid": "sentiment-api-overview",
+  "version": 1
+}
+
+
