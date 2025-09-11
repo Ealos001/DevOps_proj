@@ -44,7 +44,7 @@ This project implements an automated pipeline for sentiment analysis of product 
 sentiment-analysis-devops/
 ├── app.py                          # Main Flask application
 ├── requirements.txt                # Python dependencies
-├── download_model.py              # Model download script
+├── sentimentanalysismodel.pkl      # Pre-trained ML model (required)
 ├── Dockerfile                     # Docker image definition
 ├── docker-compose.yml             # Multi-container setup
 ├── Jenkinsfile                    # CI/CD pipeline definition
@@ -97,13 +97,13 @@ cd sentiment-analysis-devops
 
 ```bash
 # Build and start all services
-docker-compose up --build -d
+docker compose up --build -d
 
 # Check services status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f sentiment-app
+docker compose logs -f sentiment-app
 ```
 
 #### Option B: Local Development Setup
@@ -115,9 +115,6 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Download the sentiment model
-python download_model.py
 
 # Run the application
 python app.py
@@ -147,10 +144,13 @@ DOCKER_TAG=latest
 
 ### Model Configuration
 
-The application uses a pre-trained sentiment analysis model. The model is automatically downloaded on first startup or can be manually downloaded:
+The application uses a pre-trained sentiment analysis model (`sentimentanalysismodel.pkl`).
+
+- In CI/CD, the Jenkins pipeline will automatically download the model if it's missing before build and tests.
+- For local runs, download it manually once and keep it in the project root:
 
 ```bash
-python download_model.py
+curl -L -o sentimentanalysismodel.pkl "https://github.com/Profession-AI/progetti-devops/raw/refs/heads/main/Deploy%20e%20monitoraggio%20di%20un%20modello%20di%20sentiment%20analysis%20per%20recensioni/sentimentanalysismodel.pkl"
 ```
 
 ## 🧪 Testing
@@ -197,14 +197,14 @@ pytest -v --cov=app --cov-report=html --junitxml=test-results.xml
 
 1. **Checkout**: Clone the repository
 2. **Setup Environment**: Create Python virtual environment
-3. **Download Model**: Get the ML model
+3. **Verify/Download Model**: Ensure the ML model is present (auto-download if missing)
 4. **Unit Tests**: Run pytest unit tests
 5. **Code Quality**: Lint code with flake8
 6. **Integration Tests**: Test API endpoints
 7. **Build Docker Image**: Create container image
 8. **Security Scan**: Scan for vulnerabilities
-9. **Deploy to Staging**: Deploy to staging environment (develop branch)
-10. **Deploy to Production**: Deploy to production (main branch, manual approval)
+9. **Deploy to Staging**: Deploy full stack via docker compose (develop branch)
+10. **Deploy to Production**: Deploy full stack via docker compose (main branch, manual approval)
 11. **Smoke Tests**: Verify deployment health
 
 ### Manual Pipeline Trigger
@@ -238,7 +238,7 @@ Pre-configured dashboard includes:
 
 ### Custom Alerts
 
-Configure alerts in `monitoring/alert_rules.yml`:
+Alerts are defined in `monitoring/alert_rules.yml` and are loaded by Prometheus via a mounted path (`/etc/prometheus/alert_rules.yml`). The docker compose file already mounts this file so alerts are active by default.
 
 - High error rate (>0.1 errors/sec)
 - High response time (>3 seconds)
@@ -314,13 +314,13 @@ docker exec -it sentiment-app /bin/bash
 
 ```bash
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # Scale the application
-docker-compose up -d --scale sentiment-app=3
+docker compose up -d --scale sentiment-app=3
 
 # Update a service
-docker-compose up -d --no-deps sentiment-app
+docker compose up -d --no-deps sentiment-app
 
 # View resource usage
 docker stats
@@ -332,8 +332,27 @@ docker stats
 
 #### 1. Model Download Fails
 ```bash
-# Manually download the model
+# Method 1: Use the download script
+python download_model.py
+
+# Method 2: Manual download with wget
 wget -O sentimentanalysismodel.pkl "https://github.com/Profession-AI/progetti-devops/raw/refs/heads/main/Deploy%20e%20monitoraggio%20di%20un%20modello%20di%20sentiment%20analysis%20per%20recensioni/sentimentanalysismodel.pkl"
+
+# Method 3: Manual download with curl  
+curl -L -o sentimentanalysismodel.pkl "https://github.com/Profession-AI/progetti-devops/raw/refs/heads/main/Deploy%20e%20monitoraggio%20di%20un%20modello%20di%20sentiment%20analysis%20per%20recensioni/sentimentanalysismodel.pkl"
+
+# Verify the file exists and has content
+ls -la sentimentanalysismodel.pkl
+```
+
+#### 2. Docker Build Fails - Model Not Found
+```bash
+# Ensure the model file is in the project root
+ls -la sentimentanalysismodel.pkl
+
+
+# Then rebuild
+docker-compose up --build
 ```
 
 #### 2. Port Already in Use
@@ -367,13 +386,13 @@ docker stats
 docker-compose logs sentiment-app
 
 # All services logs
-docker-compose logs
+docker compose logs
 
 # Follow logs in real-time
-docker-compose logs -f
+docker compose logs -f
 
 # Check container health
-docker-compose ps
+docker compose ps
 ```
 
 ## 🔒 Security Considerations
@@ -434,7 +453,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 📞 Support
 
 If you encounter any issues:
-
 1. Check the [Troubleshooting](#-troubleshooting) section
 2. Review the logs: `docker-compose logs`
 3. Open an issue on GitHub

@@ -32,12 +32,24 @@ pipeline {
             }
         }
         
-        stage('Download Model') {
+        stage('Verify Model') {
             steps {
-                echo 'Downloading sentiment analysis model...'
+                echo 'Verifying sentiment analysis model exists...'
                 sh '''
-                    . venv/bin/activate
-                    python download_model.py
+                    if [ ! -f "sentimentanalysismodel.pkl" ]; then
+                        echo "Model file not found. Downloading..."
+                        (
+                          curl -L -o sentimentanalysismodel.pkl "https://github.com/Profession-AI/progetti-devops/raw/refs/heads/main/Deploy%20e%20monitoraggio%20di%20un%20modello%20di%20sentiment%20analysis%20per%20recensioni/sentimentanalysismodel.pkl" \
+                          || python - <<'PY'
+import urllib.request
+url = "https://github.com/Profession-AI/progetti-devops/raw/refs/heads/main/Deploy%20e%20monitoraggio%20di%20un%20modello%20di%20sentiment%20analysis%20per%20recensioni/sentimentanalysismodel.pkl"
+urllib.request.urlretrieve(url, "sentimentanalysismodel.pkl")
+print("Downloaded model via Python")
+PY
+                        ) || { echo "ERROR: Failed to download sentimentanalysismodel.pkl"; exit 1; }
+                    fi
+                    echo "✅ Model file present: sentimentanalysismodel.pkl"
+                    ls -la sentimentanalysismodel.pkl
                 '''
             }
         }
@@ -47,7 +59,7 @@ pipeline {
                 echo 'Running unit tests...'
                 sh '''
                     . venv/bin/activate
-                    python -m pytest tests/ -v --junitxml=test-results.xml || true
+                    python -m pytest tests/ -v --junitxml=test-results.xml
                 '''
             }
             post {
@@ -84,7 +96,7 @@ pipeline {
                     sleep 10
                     
                     # Run integration tests
-                    python -m pytest integration_tests/ -v || true
+                    python -m pytest integration_tests/ -v
                     
                     # Kill the app
                     kill $APP_PID || true
@@ -121,22 +133,23 @@ pipeline {
                 branch 'develop'
             }
             steps {
-                echo 'Deploying to staging environment...'
+                echo 'Deploying full stack to staging using docker-compose...'
                 sh '''
-                    # Stop existing staging container
-                    docker stop ${APP_NAME}-staging || true
-                    docker rm ${APP_NAME}-staging || true
-                    
-                    # Run new staging container
-                    docker run -d \\
-                        --name ${APP_NAME}-staging \\
-                        -p 5001:${APP_PORT} \\
-                        --restart unless-stopped \\
-                        ${DOCKER_IMAGE}:${DOCKER_TAG}
-                    
-                    # Health check
-                    sleep 10
-                    curl -f http://localhost:5001/health || exit 1
+                    # Use a separate project name for staging to avoid conflicts
+                    export COMPOSE_PROJECT_NAME=${APP_NAME}-staging
+
+                    # Recreate all services defined in docker-compose.yml
+                    docker compose down || true
+                    docker compose build --no-cache --pull
+                    docker compose up -d
+
+                    # Wait for app to become healthy
+                    sleep 20
+                    curl -f http://localhost:5000/health || exit 1
+
+                    # Quick checks for monitoring stack
+                    curl -f http://localhost:9090/-/healthy || exit 1
+                    curl -f http://localhost:3000/login || exit 1
                 '''
             }
         }
@@ -147,25 +160,20 @@ pipeline {
             }
             steps {
                 input message: 'Deploy to production?', ok: 'Deploy'
-                echo 'Deploying to production environment...'
+                echo 'Deploying full stack to production using docker-compose...'
                 sh '''
-                    # Blue-Green deployment strategy
-                    
-                    # Stop existing production container
-                    docker stop ${APP_NAME}-prod || true
-                    docker rm ${APP_NAME}-prod || true
-                    
-                    # Run new production container
-                    docker run -d \\
-                        --name ${APP_NAME}-prod \\
-                        -p ${APP_PORT}:${APP_PORT} \\
-                        --restart unless-stopped \\
-                        -e FLASK_ENV=production \\
-                        ${DOCKER_IMAGE}:${DOCKER_TAG}
-                    
-                    # Health check
-                    sleep 15
+                    export COMPOSE_PROJECT_NAME=${APP_NAME}-prod
+
+                    # Bring down old stack and recreate
+                    docker compose down || true
+                    docker compose build --no-cache --pull
+                    docker compose up -d
+
+                    # Health checks
+                    sleep 30
                     curl -f http://localhost:${APP_PORT}/health || exit 1
+                    curl -f http://localhost:9090/-/healthy || exit 1
+                    curl -f http://localhost:3000/login || exit 1
                 '''
             }
         }
@@ -194,22 +202,24 @@ pipeline {
         
         stage('Smoke Tests') {
             steps {
-                echo 'Running smoke tests on deployed application...'
+                echo 'Running smoke tests on deployed stack...'
                 sh '''
-                    # Wait for application to be fully ready
-                    sleep 10
-                    
-                    # Test health endpoint
+                    # Wait for services to be fully ready
+                    sleep 15
+
+                    # App endpoints
                     curl -f http://localhost:${APP_PORT}/health
-                    
-                    # Test metrics endpoint
                     curl -f http://localhost:${APP_PORT}/metrics
-                    
-                    # Test prediction endpoint
-                    curl -X POST http://localhost:${APP_PORT}/predict \\
-                         -H "Content-Type: application/json" \\
-                         -d '{"review": "This is a test review"}' \\
+                    curl -X POST http://localhost:${APP_PORT}/predict \
+                         -H "Content-Type: application/json" \
+                         -d '{"review": "This is a test review"}' \
                          -f
+
+                    # Prometheus
+                    curl -f http://localhost:9090/-/ready
+
+                    # Grafana (login page ok is enough)
+                    curl -f http://localhost:3000/login
                 '''
             }
         }
