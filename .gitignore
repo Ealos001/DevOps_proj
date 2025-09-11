@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+ENV/
+env/
+
+# OS / Editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Coverage / reports
+htmlcov/
+.coverage*
+*.coverage
+junit*.xml
+
+# Logs
+*.log
+
+# Docker
+*.tar
+
+# Uploads (keep folder tracked via .gitkeep)
+uploads/*
+!uploads/.gitkeep
+
+# Model (keep tracked)
+# sentimentanalysismodel.pkl
