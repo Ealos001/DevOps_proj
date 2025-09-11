@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentiment Analysis Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .tab {
+            background: none;
+            border: none;
+            padding: 15px 30px;
+            cursor: pointer;
+            font-size: 1.1em;
+            color: #7f8c8d;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            color: #2c3e50;
+            border-bottom-color: #3498db;
+        }
+
+        .tab:hover {
+            background: #f8f9fa;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        textarea, input[type="file"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+            resize: vertical;
+        }
+
+        textarea:focus, input[type="file"]:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            margin-top: 30px;
+            padding: 25px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .result.success {
+            background: #d5f4e6;
+            border: 2px solid #27ae60;
+            color: #27ae60;
+        }
+
+        .result.error {
+            background: #fceaea;
+            border: 2px solid #e74c3c;
+            color: #e74c3c;
+        }
+
+        .sentiment {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 10px 0;
+            text-transform: capitalize;
+        }
+
+        .confidence {
+            font-size: 1.1em;
+            margin: 5px 0;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .results-table th, .results-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .results-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .results-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .sentiment-positive { color: #27ae60; }
+        .sentiment-negative { color: #e74c3c; }
+        .sentiment-neutral { color: #f39c12; }
+
+        .file-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-size: 0.9em;
+            color: #7f8c8d;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 10px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab {
+                padding: 12px 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Sentiment Analysis Dashboard</h1>
+            <p>Advanced AI-powered sentiment analysis for product reviews</p>
+        </div>
+
+        <div class="content">
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('single')">Single Review</button>
+                <button class="tab" onclick="showTab('batch')">Batch Analysis</button>
+            </div>
+
+            <!-- Single Review Tab -->
+            <div id="single" class="tab-content active">
+                <form id="singleForm">
+                    <div class="form-group">
+                        <label for="reviewText">Review Text</label>
+                        <textarea 
+                            id="reviewText" 
+                            rows="5" 
+                            placeholder="Enter a product review here... (e.g., 'This product is amazing! I love it.')"
+                            required
+                        ></textarea>
+                    </div>
+                    <button type="submit" class="btn">
+                        <span>🔍</span>
+                        Analyze Sentiment
+                    </button>
+                </form>
+
+                <div class="loading" id="singleLoading">
+                    <div class="spinner"></div>
+                    <p>Analyzing sentiment...</p>
+                </div>
+
+                <div id="singleResult" class="result"></div>
+            </div>
+
+            <!-- Batch Analysis Tab -->
+            <div id="batch" class="tab-content">
+                <form id="batchForm">
+                    <div class="form-group">
+                        <label for="reviewFile">Upload Reviews File</label>
+                        <input 
+                            type="file" 
+                            id="reviewFile" 
+                            accept=".txt"
+                            required
+                        >
+                        <div class="file-info">
+                            📝 Upload a text file with one review per line. Maximum file size: 16MB
+                        </div>
+                    </div>
+                    <button type="submit" class="btn">
+                        <span>📊</span>
+                        Analyze Batch
+                    </button>
+                </form>
+
+                <div class="loading" id="batchLoading">
+                    <div class="spinner"></div>
+                    <p>Processing batch analysis...</p>
+                </div>
+
+                <div id="batchResult" class="result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        // Single review form handling
+        document.getElementById('singleForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const reviewText = document.getElementById('reviewText').value;
+            const loading = document.getElementById('singleLoading');
+            const result = document.getElementById('singleResult');
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            
+            // Show loading state
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ review: reviewText })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.className = 'result success';
+                    result.innerHTML = `
+                        <h3>✅ Analysis Complete</h3>
+                        <div class="sentiment sentiment-${data.sentiment}">
+                            Sentiment: ${data.sentiment.toUpperCase()}
+                        </div>
+                        <div class="confidence">
+                            Confidence: ${(data.confidence * 100).toFixed(1)}%
+                        </div>
+                        <div style="margin-top: 15px; font-size: 0.9em; color: #7f8c8d;">
+                            Review: "${data.review}"
+                        </div>
+                    `;
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+                
+            } catch (error) {
+                result.className = 'result error';
+                result.innerHTML = `
+                    <h3>❌ Error</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+            
+            // Hide loading state
+            loading.style.display = 'none';
+            result.style.display = 'block';
+            submitBtn.disabled = false;
+        });
+
+        // Batch analysis form handling
+        document.getElementById('batchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('reviewFile');
+            const file = fileInput.files[0];
+            const loading = document.getElementById('batchLoading');
+            const result = document.getElementById('batchResult');
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+            
+            // Show loading state
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            submitBtn.disabled = true;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/predict-file', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.className = 'result success';
+                    
+                    let tableHTML = `
+                        <h3>📊 Batch Analysis Complete</h3>
+                        <p><strong>Total Processed:</strong> ${data.total_processed} reviews</p>
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Line</th>
+                                    <th>Review</th>
+                                    <th>Sentiment</th>
+                                    <th>Confidence</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    data.results.forEach(item => {
+                        if (item.error) {
+                            tableHTML += `
+                                <tr>
+                                    <td>${item.line}</td>
+                                    <td>${item.review}</td>
+                                    <td style="color: #e74c3c;">Error</td>
+                                    <td>${item.error}</td>
+                                </tr>
+                            `;
+                        } else {
+                            tableHTML += `
+                                <tr>
+                                    <td>${item.line}</td>
+                                    <td>${item.review}</td>
+                                    <td class="sentiment-${item.sentiment}">${item.sentiment.toUpperCase()}</td>
+                                    <td>${(item.confidence * 100).toFixed(1)}%</td>
+                                </tr>
+                            `;
+                        }
+                    });
+                    
+                    tableHTML += '</tbody></table>';
+                    result.innerHTML = tableHTML;
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+                
+            } catch (error) {
+                result.className = 'result error';
+                result.innerHTML = `
+                    <h3>❌ Error</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+            
+            // Hide loading state
+            loading.style.display = 'none';
+            result.style.display = 'block';
+            submitBtn.disabled = false;
+        });
+    </script>
+</body>
+</html>
