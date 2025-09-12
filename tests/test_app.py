@@ -7,7 +7,7 @@ import pytest
 import json
 import os
 import tempfile
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -26,7 +26,8 @@ def client():
 def mock_model():
     """Mock the sentiment analysis model"""
     with patch('app.model') as mock:
-        mock.predict.return_value = [1]  # Mock positive sentiment
+        mock.predict.return_value = [2]  # Positive sentiment by default
+        mock.predict_proba.return_value = [[0.1, 0.2, 0.7]]
         yield mock
 
 class TestAppEndpoints:
@@ -62,8 +63,8 @@ class TestPredictEndpoint:
         test_data = {"review": "This product is amazing!"}
         
         response = client.post('/predict',
-                             data=json.dumps(test_data),
-                             content_type='application/json')
+                               data=json.dumps(test_data),
+                               content_type='application/json')
         
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -79,8 +80,8 @@ class TestPredictEndpoint:
         test_data = {}
         
         response = client.post('/predict',
-                             data=json.dumps(test_data),
-                             content_type='application/json')
+                               data=json.dumps(test_data),
+                               content_type='application/json')
         
         assert response.status_code == 400
         data = json.loads(response.data)
@@ -91,8 +92,8 @@ class TestPredictEndpoint:
         test_data = {"review": "   "}
         
         response = client.post('/predict',
-                             data=json.dumps(test_data),
-                             content_type='application/json')
+                               data=json.dumps(test_data),
+                               content_type='application/json')
         
         assert response.status_code == 400
         data = json.loads(response.data)
@@ -101,8 +102,8 @@ class TestPredictEndpoint:
     def test_predict_invalid_json(self, client):
         """Test prediction with invalid JSON"""
         response = client.post('/predict',
-                             data="invalid json",
-                             content_type='application/json')
+                               data="invalid json",
+                               content_type='application/json')
         
         assert response.status_code == 400
 
@@ -111,23 +112,16 @@ class TestFileUpload:
     
     def test_predict_file_valid(self, client, mock_model):
         """Test batch prediction with valid file"""
-        # Create a temporary file with test reviews
         test_content = "This product is great!\nI hate this item.\n"
         
-        data = {
-            'file': (tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt'), 
-                    test_content)
-        }
-        
-        # Write content to file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt') as f:
             f.write(test_content)
             temp_file_path = f.name
         
         with open(temp_file_path, 'rb') as f:
             response = client.post('/predict-file',
-                                 data={'file': (f, 'test_reviews.txt')},
-                                 content_type='multipart/form-data')
+                                   data={'file': (f, 'test_reviews.txt')},
+                                   content_type='multipart/form-data')
         
         os.unlink(temp_file_path)
         
@@ -141,8 +135,8 @@ class TestFileUpload:
     def test_predict_file_no_file(self, client):
         """Test batch prediction with no file uploaded"""
         response = client.post('/predict-file',
-                             data={},
-                             content_type='multipart/form-data')
+                               data={},
+                               content_type='multipart/form-data')
         
         assert response.status_code == 400
         data = json.loads(response.data)
@@ -155,6 +149,7 @@ class TestSentimentPrediction:
     def test_predict_sentiment_function(self, mock_model):
         """Test the predict_sentiment function"""
         mock_model.predict.return_value = [2]  # Positive sentiment
+        mock_model.predict_proba.return_value = [[0.1, 0.2, 0.7]]
         
         sentiment, confidence = predict_sentiment("Great product!")
         
