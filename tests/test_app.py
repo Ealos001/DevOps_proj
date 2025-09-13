@@ -171,3 +171,5 @@ class TestSentimentPrediction:
 
 if __name__ == '__main__':
     pytest.main([__file__])
+
+    #Commento di prova per la pipeline
