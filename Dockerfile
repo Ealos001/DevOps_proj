@@ -7,6 +7,7 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
     FLASK_APP=app.py \
     FLASK_ENV=production
 
