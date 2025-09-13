@@ -84,10 +84,13 @@ services:
       - monitoring
     restart: unless-stopped
 
-  # Jenkins for CI/CD
+  # Jenkins for CI/CD with Docker access
   jenkins:
-    image: jenkins/jenkins:lts
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
     container_name: jenkins
+    user: root
     ports:
       - "8080:8080"
       - "50000:50000"
@@ -98,6 +101,7 @@ services:
     networks:
       - monitoring
     restart: unless-stopped
+
 
 volumes:
   prometheus_data:

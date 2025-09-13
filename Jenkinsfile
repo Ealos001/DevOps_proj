@@ -9,7 +9,7 @@ pipeline {
     }
 
     triggers {
-        // Puoi sostituire con webhook dal repository per trigger automatici
+        // Trigger automatico (puoi sostituire con webhook)
         pollSCM('* * * * *')
     }
 
@@ -33,40 +33,37 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    // Build immagine usando Dockerfile del progetto
-                    docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}", "--pull .")
-                    sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
-                }
+                // Build immagine usando Dockerfile del progetto senza plugin
+                sh """
+                    docker build --pull -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                    docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
+                """
             }
         }
 
         stage('Run Tests in Container') {
             steps {
-                script {
-                    // Test containerizzati, montando i test
-                    sh """
-                        docker run --rm \\
-                            -v ${WORKSPACE}/tests:/app/tests \\
-                            ${DOCKER_IMAGE}:${DOCKER_TAG} \\
-                            pytest tests/ --junitxml=/app/test-results.xml
-                    """
-                }
+                sh """
+                    docker run --rm \
+                        ${DOCKER_IMAGE}:${DOCKER_TAG} \
+                        pytest tests/ --junitxml=test-results.xml
+                """
             }
             post {
                 always {
-                    junit 'tests/test-results.xml'
+                    junit 'test-results.xml'
                 }
             }
         }
 
+
         stage('Deploy to Staging') {
             when { branch 'develop' }
             steps {
-                sh '''
+                sh """
                     docker compose -p ${APP_NAME}-staging down || true
                     docker compose -p ${APP_NAME}-staging up -d --build
-                '''
+                """
             }
         }
 
@@ -74,10 +71,10 @@ pipeline {
             when { branch 'main' }
             steps {
                 input "Deploy to production?"
-                sh '''
+                sh """
                     docker compose -p ${APP_NAME}-prod down || true
                     docker compose -p ${APP_NAME}-prod up -d --build
-                '''
+                """
             }
         }
     }
@@ -85,7 +82,7 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: 'tests/test-results.xml', allowEmptyArchive: true
-            // Pulizia immagini temporanee
+            // Pulizia immagini Docker temporanee
             sh "docker image prune -f"
         }
     }

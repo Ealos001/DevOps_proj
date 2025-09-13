@@ -1,0 +1,19 @@
+FROM jenkins/jenkins:lts
+
+USER root
+
+# Installa Docker CLI
+RUN apt-get update && \
+    apt-get install -y docker.io && \
+    rm -rf /var/lib/apt/lists/*
+
+# Gruppo docker
+RUN groupadd -g 999 docker || true
+
+# Aggiungi Jenkins al gruppo docker
+RUN usermod -aG docker jenkins
+
+# Cambia permessi sul socket (opzionale per test veloce)
+RUN chmod 666 /var/run/docker.sock || true
+
+USER jenkins
