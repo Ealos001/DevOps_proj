@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # Sentiment Analysis Application
   sentiment-app:
@@ -82,10 +84,27 @@ services:
       - monitoring
     restart: unless-stopped
 
+  # Jenkins for CI/CD
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./sentiment-analysis-devops:/app
+    networks:
+      - monitoring
+    restart: unless-stopped
+
 volumes:
   prometheus_data:
     driver: local
   grafana_data:
+    driver: local
+  jenkins_home:
     driver: local
 
 networks:

@@ -8,6 +8,11 @@ pipeline {
         APP_PORT = '5000'
     }
 
+    triggers {
+        // Puoi sostituire con webhook dal repository per trigger automatici
+        pollSCM('* * * * *')
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -15,46 +20,42 @@ pipeline {
             }
         }
 
-        stage('Setup Environment') {
-            steps {
-                sh '''
-                    python3 -m venv venv
-                    . venv/bin/activate
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
-                '''
-            }
-        }
-
         stage('Verify Model') {
             steps {
                 sh '''
                     if [ ! -f "sentimentanalysismodel.pkl" ]; then
-                        curl -L -o sentimentanalysismodel.pkl "https://github.com/Profession-AI/progetti-devops/raw/refs/heads/main/Deploy%20e%20monitoraggio%20di%20un%20modello%20di%20sentiment%20analysis%20per%20recensioni/sentimentanalysismodel.pkl"
+                        echo "ERROR: sentimentanalysismodel.pkl not found!"
+                        exit 1
                     fi
                 '''
-            }
-        }
-
-        stage('Tests') {
-            steps {
-                sh '''
-                    . venv/bin/activate
-                    python -m pytest -v --junitxml=test-results.xml
-                '''
-            }
-            post {
-                always {
-                    junit 'test-results.xml'
-                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
+                    // Build immagine usando Dockerfile del progetto
+                    docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}", "--pull .")
                     sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
+                }
+            }
+        }
+
+        stage('Run Tests in Container') {
+            steps {
+                script {
+                    // Test containerizzati, montando i test
+                    sh """
+                        docker run --rm \\
+                            -v ${WORKSPACE}/tests:/app/tests \\
+                            ${DOCKER_IMAGE}:${DOCKER_TAG} \\
+                            pytest tests/ --junitxml=/app/test-results.xml
+                    """
+                }
+            }
+            post {
+                always {
+                    junit 'tests/test-results.xml'
                 }
             }
         }
@@ -83,8 +84,9 @@ pipeline {
 
     post {
         always {
-            sh 'rm -rf venv'
-            archiveArtifacts artifacts: 'test-results.xml', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'tests/test-results.xml', allowEmptyArchive: true
+            // Pulizia immagini temporanee
+            sh "docker image prune -f"
         }
     }
 }

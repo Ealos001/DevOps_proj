@@ -53,8 +53,6 @@ sentiment-analysis-devops/
 │   └── index.html                 # Web interface
 ├── tests/
 │   └── test_app.py               # Unit tests
-├── integration_tests/
-│   └── test_integration.py       # Integration tests
 ├── monitoring/
 │   ├── prometheus.yml            # Prometheus configuration
 │   ├── alert_rules.yml           # Alerting rules

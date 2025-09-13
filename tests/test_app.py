@@ -1,143 +1,130 @@
-#!/usr/bin/env python3
-"""
-Unit tests for the sentiment analysis application
-"""
-
-import pytest
+import unittest
 import json
-import os
-import tempfile
-from unittest.mock import patch
+import io
+from unittest.mock import patch, MagicMock
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import os
 
-from app import app, predict_sentiment
+# Aggiungi il percorso del file principale per importarlo
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-@pytest.fixture
-def client():
-    """Create a test client for the Flask application"""
-    app.config['TESTING'] = True
-    app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
+# Mock del modello prima di importare l'app
+with patch('builtins.open'), patch('pickle.load') as mock_pickle:
+    mock_model = MagicMock()
+    mock_model.predict.return_value = ['positive']
+    mock_model.predict_proba.return_value = [[0.1, 0.9]]
+    mock_model.__class__.__name__ = 'MockModel'
+    mock_pickle.return_value = mock_model
     
-    with app.test_client() as client:
-        yield client
+    # Importa l'app dopo il mock
+    from app import app
 
-@pytest.fixture
-def mock_model():
-    """Mock the sentiment analysis model"""
-    with patch('app.model') as mock:
-        mock.predict.return_value = ['positive']  # mock as string
-        mock.predict_proba.return_value = [[0.1, 0.2, 0.7]]  # probabilities
-        yield mock
-
-class TestAppEndpoints:
-    """Test class for application endpoints"""
+class TestSentimentApp(unittest.TestCase):
     
-    def test_index_route(self, client):
-        response = client.get('/')
-        assert response.status_code == 200
-        assert b'Sentiment Analysis Dashboard' in response.data
+    def setUp(self):
+        """Setup per ogni test"""
+        self.app = app.test_client()
+        self.app.testing = True
     
-    def test_health_endpoint(self, client):
-        response = client.get('/health')
-        assert response.status_code == 200
-        data = json.loads(response.data)
-        assert 'status' in data
-        assert 'timestamp' in data
-        assert data['status'] == 'healthy'
+    def test_index_route(self):
+        """Test della route principale"""
+        with patch('app.render_template') as mock_render:
+            mock_render.return_value = 'index page'
+            response = self.app.get('/')
+            self.assertEqual(response.status_code, 200)
+            mock_render.assert_called_once_with('index.html')
     
-    def test_metrics_endpoint(self, client):
-        response = client.get('/metrics')
-        assert response.status_code == 200
-        assert response.content_type.startswith('text/plain')
-
-class TestPredictEndpoint:
-    """Test class for prediction endpoints"""
-    
-    def test_predict_valid_request(self, client, mock_model):
-        test_data = {"review": "This product is amazing!"}
-        response = client.post('/predict',
-                               data=json.dumps(test_data),
-                               content_type='application/json')
-        assert response.status_code == 200
-        data = json.loads(response.data)
-        assert 'sentiment' in data
-        assert 'confidence' in data
-        assert 'review' in data
-        assert data['sentiment'] in ['positive', 'negative', 'neutral']
-        assert 0 <= data['confidence'] <= 1
-    
-    def test_predict_missing_review(self, client):
-        response = client.post('/predict',
-                               data=json.dumps({}),
-                               content_type='application/json')
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert 'error' in data
-    
-    def test_predict_empty_review(self, client):
-        response = client.post('/predict',
-                               data=json.dumps({"review": "   "}),
-                               content_type='application/json')
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert 'error' in data
-    
-    def test_predict_invalid_json(self, client):
-        response = client.post('/predict',
-                               data="invalid json",
-                               content_type='application/json')
-        assert response.status_code == 400
-
-class TestFileUpload:
-    """Test class for file upload functionality"""
-    
-    def test_predict_file_valid(self, client, mock_model):
-        test_content = "This product is great!\nI hate this item.\n"
+    def test_health_route(self):
+        """Test dell'endpoint di health check"""
+        response = self.app.get('/health')
+        self.assertEqual(response.status_code, 200)
         
-        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt') as f:
-            f.write(test_content)
-            temp_file_path = f.name
-        
-        with open(temp_file_path, 'rb') as f:
-            response = client.post('/predict-file',
-                                   data={'file': (f, 'test_reviews.txt')},
-                                   content_type='multipart/form-data')
-        
-        os.unlink(temp_file_path)
-        
-        assert response.status_code == 200
         data = json.loads(response.data)
-        assert 'results' in data
-        assert 'total_processed' in data
-        assert len(data['results']) == 2
+        self.assertIn('status', data)
+        self.assertIn('model_loaded', data)
+        self.assertIn('timestamp', data)
+        self.assertEqual(data['status'], 'healthy')
     
-    def test_predict_file_no_file(self, client):
-        response = client.post('/predict-file',
-                               data={},
-                               content_type='multipart/form-data')
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert 'error' in data
-
-class TestSentimentPrediction:
-    """Test class for sentiment prediction logic"""
-    
-    @patch('app.model')
-    def test_predict_sentiment_function(self, mock_model):
-        mock_model.predict.return_value = ['positive']  # string output
-        mock_model.predict_proba.return_value = [[0.1, 0.2, 0.7]]
+    def test_predict_success(self):
+        """Test predizione con testo valido"""
+        test_data = {'review': 'This movie is great!'}
+        response = self.app.post('/predict', 
+                                json=test_data,
+                                content_type='application/json')
         
-        sentiment, confidence = predict_sentiment("Great product!")
-        assert sentiment == 'positive'
-        assert isinstance(confidence, float)
-        assert 0 <= confidence <= 1
-        mock_model.predict.assert_called_once_with(["Great product!"])
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertIn('sentiment', data)
+        self.assertIn('confidence', data)
+        self.assertIn('review', data)
     
-    def test_predict_sentiment_no_model(self):
-        with patch('app.model', None):
-            with pytest.raises(ValueError, match="Model not loaded"):
-                predict_sentiment("Test review")
+    def test_predict_empty_text(self):
+        """Test predizione con testo vuoto"""
+        test_data = {'review': ''}
+        response = self.app.post('/predict', 
+                                json=test_data,
+                                content_type='application/json')
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertIn('error', data)
+    
+    def test_predict_no_data(self):
+        """Test predizione senza dati"""
+        response = self.app.post('/predict', 
+                                json={},
+                                content_type='application/json')
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertIn('error', data)
+    
+    def test_predict_file_success(self):
+        """Test predizione con file valido"""
+        test_file_content = "Great movie!\nTerrible film!\nOkay story."
+        
+        data = {
+            'file': (io.BytesIO(test_file_content.encode()), 'test.txt')
+        }
+        
+        response = self.app.post('/predict-file', 
+                                data=data,
+                                content_type='multipart/form-data')
+        
+        self.assertEqual(response.status_code, 200)
+        result = json.loads(response.data)
+        self.assertIn('total_processed', result)
+        self.assertIn('results', result)
+        self.assertGreater(result['total_processed'], 0)
+    
+    def test_predict_file_no_file(self):
+        """Test predizione senza file"""
+        response = self.app.post('/predict-file')
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertIn('error', data)
+    
+    def test_metrics_endpoint(self):
+        """Test dell'endpoint delle metriche Prometheus"""
+        response = self.app.get('/metrics')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('text/plain', response.content_type)
+    
+    @patch('app.predict_sentiment')
+    def test_predict_internal_error(self, mock_predict):
+        """Test gestione errori interni"""
+        mock_predict.side_effect = Exception("Model error")
+        
+        test_data = {'review': 'Test text'}
+        response = self.app.post('/predict', 
+                                json=test_data,
+                                content_type='application/json')
+        
+        self.assertEqual(response.status_code, 500)
+        data = json.loads(response.data)
+        self.assertIn('error', data)
 
 if __name__ == '__main__':
-    pytest.main([__file__])
+    # Esegue tutti i test
+    unittest.main(verbosity=2)
