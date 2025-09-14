@@ -1,0 +1,22 @@
+FROM jenkins/jenkins:lts
+
+USER root
+
+# Installa Docker CLI
+RUN apt-get update && \
+    apt-get install -y docker.io && \
+    rm -rf /var/lib/apt/lists/*
+
+# Gruppo docker
+RUN groupadd -g 999 docker || true
+
+# Aggiungi Jenkins al gruppo docker
+RUN usermod -aG docker jenkins
+
+# Cambia permessi sul socket (opzionale per test veloce)
+RUN chmod 666 /var/run/docker.sock || true
+
+USER jenkins
+
+#jenkins-plugin-cli --plugins workflow-cps:4183.v94b_6fd39da_c1 workflow-multibranch:2.41 git:4.14.1 docker-workflow:1.27 junit:1.54 credentials:2.9.0 ssh-agent:1.26
+#installare da terminale dentro il docker di jenkins questi plugin per costruire la pipeline

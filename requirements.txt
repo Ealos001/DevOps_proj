@@ -1,0 +1,13 @@
+# Flask web framework
+Flask
+Werkzeug
+numpy
+pandas
+scikit-learn
+psutil
+prometheus-client
+gunicorn
+requests
+pytest
+pytest-cov
+pytest-xdist
